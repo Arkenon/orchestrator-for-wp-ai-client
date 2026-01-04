@@ -1,0 +1,16 @@
+{
+	"require": {
+		"php-di/php-di": "^6.4",
+		"wordpress/wp-ai-client": "^0.2.1"
+	},
+	"autoload": {
+		"psr-4": {
+			"OrchestratorForWpAiClient\\": "includes/"
+		}
+	},
+	"config": {
+		"allow-plugins": {
+			"php-http/discovery": true
+		}
+	}
+}
