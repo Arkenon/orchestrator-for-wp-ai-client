@@ -12,6 +12,7 @@ use DI\DependencyException;
 use DI\NotFoundException;
 use Exception;
 use OrchestratorForWpAiClient\Common\DI;
+use OrchestratorForWpAiClient\Services\RestService;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -23,7 +24,7 @@ final class App {
 	 * @since 1.0.0
 	 */
 	private array $services = [
-		// There is no service yet
+		RestService::class
 	];
 
 	/**
@@ -68,6 +69,9 @@ final class App {
 		foreach ( $this->services as $service ) {
 			DI::container()->get( $service );
 		}
+
+		// Init Wp AI Client
+		add_action( 'init', array( 'WordPress\AI_Client\AI_Client', 'init' ) );
 	}
 
 	/**

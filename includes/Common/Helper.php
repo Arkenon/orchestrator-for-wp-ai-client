@@ -7,7 +7,7 @@
  * @since 1.0.0
  */
 
-namespace OrchestratorForWpAiClient\Common\Helpers;
+namespace OrchestratorForWpAiClient\Common;
 
 use WordPress\AiClient\Files\DTO\File;
 
@@ -75,7 +75,8 @@ class Helper {
 	public static function sanitizeArray( array $array ): array {
 		return array_map( function ( $value ) {
 			if ( is_array( $value ) ) {
-				return $this->sanitizeArray( $value );
+				// @phpstan-ignore-next-line Recursive call for nested arrays
+				return self::sanitizeArray( $value );
 			}
 
 			return sanitize_text_field( $value );
@@ -151,22 +152,5 @@ class Helper {
 		}
 
 		return $uploaded;
-	}
-
-	/**
-	 * Upload files from the request
-	 *
-	 * @return array
-	 * @since 1.0.0
-	 */
-	public static function from_attachment( int $attachment_id ): ?File {
-
-		$path = get_attached_file( $attachment_id );
-
-		if ( ! $path || ! file_exists( $path ) ) {
-			return null;
-		}
-
-		return File::fromArray( $path );
 	}
 }
