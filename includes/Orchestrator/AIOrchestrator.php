@@ -53,11 +53,11 @@ final class AiOrchestrator {
 						continue;
 					}
 
-					$file_url  = wp_get_attachment_url( $attachment_id );
+					$file_path = get_attached_file( $attachment_id );
 					$mime_type = get_post_mime_type( $attachment_id );
 
-					if ( $file_url ) {
-						$builder->with_file( $file_url, $mime_type ?: null );
+					if ( $file_path && file_exists( $file_path ) ) {
+						$builder->with_file( $file_path, $mime_type ?: null );
 					}
 				}
 			}
