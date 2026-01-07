@@ -22,6 +22,15 @@ use WP_REST_Request;
 final class AiOrchestrator {
 	private const MAX_FUNCTION_CALL_LOOPS = 10;
 
+	/**
+	 * Handle the AI request sent via REST API.
+	 *
+	 * @param WP_REST_Request $request The REST request object.
+	 * Expected to include 'text', 'model', 'temperature' and 'files' parameters.
+	 *
+	 * @return array
+	 * @since 1.0.0
+	 */
 	public function handle( WP_REST_Request $request ): array {
 		try {
 
@@ -118,6 +127,7 @@ final class AiOrchestrator {
 	 */
 	private function processModelParameter( Prompt_Builder $builder, $param ) {
 		if ( is_string( $param ) && $param !== '' && $param !== 'auto' ) {
+			//$builder->using_model_preference( sanitize_text_field( $param ) );
 			$builder->using_model_preference( sanitize_text_field( $param ) );
 		}
 	}
@@ -155,9 +165,9 @@ final class AiOrchestrator {
 				}
 
 				$file_path = get_attached_file( $attachment_id );
-				$mime_type = get_post_mime_type( $attachment_id );
 
 				if ( $file_path && file_exists( $file_path ) ) {
+					$mime_type = get_post_mime_type( $attachment_id );
 					$builder->with_file( $file_path, $mime_type ?: null );
 				}
 			}
