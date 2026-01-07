@@ -11,8 +11,10 @@ namespace OrchestratorForWpAiClient\Orchestrator;
 defined( 'ABSPATH' ) || exit;
 
 use OrchestratorForWpAiClient\Common\Helper;
+use Throwable;
 use WordPress\AI_Client\AI_Client;
 use WordPress\AI_Client\Builders\Helpers\Ability_Function_Resolver;
+use WordPress\AI_Client\Builders\Prompt_Builder;
 use WordPress\AiClient\Results\DTO\Candidate;
 use WordPress\AiClient\Results\DTO\GenerativeAiResult;
 use WP_REST_Request;
@@ -20,55 +22,41 @@ use WP_REST_Request;
 final class AiOrchestrator {
 	private const MAX_FUNCTION_CALL_LOOPS = 10;
 
-	public function handle( WP_REST_Request $request ) : array {
+	public function handle( WP_REST_Request $request ): array {
 		try {
-			$text     = trim( (string) ( $request->get_param( 'text' ) ?? '' ) );
-			$uploads  = Helper::uploadFiles();
-			$message  = null;
-			$loop     = 0;
-			$response = [ 'status' => 'error', 'message' => __( 'No valid AI response received', 'orchestrator-for-wp-ai-client' ) ];
 
-			if ( '' === $text && empty( $uploads ) ) {
+			//Get and sanitize prompt text
+			$text = trim( sanitize_textarea_field( $request->get_param( 'text' ) ) ?? '' );
+
+
+			if ( '' === $text ) {
 				return [
 					'status'  => 'error',
-					'message' => __( 'text or file parameter is required', 'orchestrator-for-wp-ai-client' ),
+					'message' => __( 'Text parameter is required!', 'orchestrator-for-wp-ai-client' ),
 				];
 			}
 
+			// Initialize the prompt builder
 			$builder = AI_Client::prompt();
+			$builder->with_text( $text );
 
-			$model_param = $request->get_param( 'model' );
-			if ( is_string( $model_param ) && $model_param !== '' && $model_param !== 'auto' ) {
-				$builder->using_model_preference( $model_param );
-			}
+			// If specific model is requested, set it in the builder
+			$this->processModelParameter( $builder, $request->get_param( 'model' ) );
 
-			if ( '' !== $text ) {
-				$builder->with_text( $text );
-			}
+			// If temperature is provided, set it in the builder
+			$this->processTemperatureParameter( $builder, $request->get_param( 'temperature' ) );
 
-			if ( ! empty( $uploads ) ) {
-				foreach ( $uploads as $upload ) {
-					$attachment_id = $upload['attachment_id'] ?? null;
-					if ( ! $attachment_id ) {
-						continue;
-					}
+			// Handle file uploads if any files are included in the request
+			$this->processAttachedFiles( $builder );
 
-					$file_path = get_attached_file( $attachment_id );
-					$mime_type = get_post_mime_type( $attachment_id );
+			// Get available abilities and add them to the builder
+			$this->processAbilities( $builder );
 
-					if ( $file_path && file_exists( $file_path ) ) {
-						$builder->with_file( $file_path, $mime_type ?: null );
-					}
-				}
-			}
-
-			$abilities = function_exists( 'wp_get_abilities' ) ? wp_get_abilities() : array();
-			if ( ! empty( $abilities ) ) {
-				$builder->using_abilities( ...$abilities );
-			}
-
+			// Generate the initial result
 			$result = $builder->generate_result();
 
+			// Handle function/ability calls if present in the result
+			$loop = 0;
 			while ( $result instanceof GenerativeAiResult ) {
 				$candidate = $result->getCandidates()[0] ?? null;
 
@@ -96,18 +84,98 @@ final class AiOrchestrator {
 					];
 				}
 
+				// Execute abilities/functions and get the response message
 				$function_response_message = Ability_Function_Resolver::execute_abilities( $message );
+
+				// Continue the conversation with the function response and previous history
 				$builder->with_history( $message, $function_response_message );
 				$result = $builder->generate_result();
-				$loop++;
+
+				$loop ++;
 			}
 
-			return $response;
-		} catch ( \Throwable $e ) {
+			return [
+				'status'  => 'success',
+				'message' => $result->toArray(),
+			];
+
+		} catch ( Throwable $e ) {
 			return [
 				'status'  => 'error',
 				'message' => $e->getMessage(),
 			];
+		}
+	}
+
+	/**
+	 * Process the model parameter and set it in the prompt builder if valid.
+	 *
+	 * @param Prompt_Builder $builder
+	 * @param $param
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	private function processModelParameter( Prompt_Builder $builder, $param ) {
+		if ( is_string( $param ) && $param !== '' && $param !== 'auto' ) {
+			$builder->using_model_preference( sanitize_text_field( $param ) );
+		}
+	}
+
+	/**
+	 * Process the temperature parameter and set it in the prompt builder if valid.
+	 *
+	 * @param Prompt_Builder $builder
+	 * @param $param
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	private function processTemperatureParameter( Prompt_Builder $builder, $param ) {
+		if ( is_numeric( $param ) ) {
+			$builder->using_temperature( floatval( $param ) );
+		}
+	}
+
+	/**
+	 * Process attached files from the request and add them to the prompt builder.
+	 *
+	 * @param Prompt_Builder $builder
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	private function processAttachedFiles( Prompt_Builder $builder ) {
+		$uploads = Helper::uploadFiles();
+		if ( ! empty( $uploads ) ) {
+			foreach ( $uploads as $upload ) {
+				$attachment_id = $upload['attachment_id'] ?? null;
+				if ( ! $attachment_id ) {
+					continue;
+				}
+
+				$file_path = get_attached_file( $attachment_id );
+				$mime_type = get_post_mime_type( $attachment_id );
+
+				if ( $file_path && file_exists( $file_path ) ) {
+					$builder->with_file( $file_path, $mime_type ?: null );
+				}
+			}
+		}
+	}
+
+	/**
+	 * Process available abilities and add them to the prompt builder.
+	 *
+	 * @param Prompt_Builder $builder
+	 *
+	 * @return void
+	 * @since 1.0.0
+	 */
+	private function processAbilities( Prompt_Builder $builder ) {
+		$abilities = function_exists( 'wp_get_abilities' ) ? wp_get_abilities() : array();
+		if ( ! empty( $abilities ) ) {
+			$builder->using_abilities( ...$abilities );
 		}
 	}
 }
