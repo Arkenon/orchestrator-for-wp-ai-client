@@ -127,7 +127,6 @@ final class AiOrchestrator {
 	 */
 	private function processModelParameter( Prompt_Builder $builder, $param ) {
 		if ( is_string( $param ) && $param !== '' && $param !== 'auto' ) {
-			//$builder->using_model_preference( sanitize_text_field( $param ) );
 			$builder->using_model_preference( sanitize_text_field( $param ) );
 		}
 	}
