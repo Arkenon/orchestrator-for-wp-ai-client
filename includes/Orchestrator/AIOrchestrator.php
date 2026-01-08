@@ -15,12 +15,10 @@ use Throwable;
 use WordPress\AI_Client\AI_Client;
 use WordPress\AI_Client\Builders\Helpers\Ability_Function_Resolver;
 use WordPress\AI_Client\Builders\Prompt_Builder;
-use WordPress\AiClient\Results\DTO\Candidate;
-use WordPress\AiClient\Results\DTO\GenerativeAiResult;
+use WordPress\AiClient\Results\Enums\FinishReasonEnum;
 use WP_REST_Request;
 
 final class AiOrchestrator {
-	private const MAX_FUNCTION_CALL_LOOPS = 10;
 
 	/**
 	 * Handle the AI request sent via REST API.
@@ -37,10 +35,10 @@ final class AiOrchestrator {
 			//Get and sanitize prompt text
 			$text = trim( sanitize_textarea_field( $request->get_param( 'text' ) ) ?? '' );
 
-
 			if ( '' === $text ) {
 				return [
 					'status'  => 'error',
+					'type'    => 'error',
 					'message' => __( 'Text parameter is required!', 'orchestrator-for-wp-ai-client' ),
 				];
 			}
@@ -62,55 +60,53 @@ final class AiOrchestrator {
 			$this->processAbilities( $builder );
 
 			// Generate the initial result
-			$result = $builder->generate_result();
+			$result        = $builder->generate_result();
+			$candidate     = $result->getCandidates()[0] ?? null;
+			$message       = $candidate->getMessage();
+			$finish_reason = $candidate->getFinishReason();
+
+			$has_ability_calls = Ability_Function_Resolver::has_ability_calls( $message );
+			$expects_tool_call = FinishReasonEnum::TOOL_CALLS == $finish_reason;
 
 			// Handle function/ability calls if present in the result
-			$loop = 0;
-			while ( $result instanceof GenerativeAiResult ) {
-				$candidate = $result->getCandidates()[0] ?? null;
-
-				if ( ! $candidate instanceof Candidate ) {
-					break;
-				}
-
-				$message       = $candidate->getMessage();
-				$finish_reason = $candidate->getFinishReason();
-
-				$has_ability_calls = Ability_Function_Resolver::has_ability_calls( $message );
-				$expects_tool_call = method_exists( $finish_reason, 'isToolCalls' ) && $finish_reason->isToolCalls();
-
-				if ( ! $has_ability_calls && ! $expects_tool_call ) {
-					return [
-						'status'  => 'success',
-						'message' => $message->toArray(),
-					];
-				}
-
-				if ( $loop >= self::MAX_FUNCTION_CALL_LOOPS ) {
-					return [
-						'status'  => 'error',
-						'message' => __( 'Function call loop limit exceeded', 'orchestrator-for-wp-ai-client' ),
-					];
-				}
-
+			$get_function_response_parts = [];
+			if ( $has_ability_calls && $expects_tool_call ) {
 				// Execute abilities/functions and get the response message
 				$function_response_message = Ability_Function_Resolver::execute_abilities( $message );
+				$get_parts                 = $function_response_message->getParts();
 
-				// Continue the conversation with the function response and previous history
-				$builder->with_history( $message, $function_response_message );
-				$result = $builder->generate_result();
+				if ( empty( $get_parts ) ) {
+					return [
+						'status'  => 'error',
+						'type'    => 'error',
+						'message' => __( 'Function response message has no parts', 'orchestrator-for-wp-ai-client' ),
+					];
+				}
 
-				$loop ++;
+				// Extract function response parts
+				foreach ( $get_parts as $part ) {
+					if ( $part->getType()->isFunctionResponse() ) {
+						$get_function_response_parts[] = $part;
+					}
+				}
+
+				return [
+					'status'  => 'success',
+					'type'    => 'function_response',
+					'message' => $get_function_response_parts,
+				];
+			} else {
+				// No function calls, return the original result
+				return [
+					'status'  => 'success',
+					'type'    => 'text_response',
+					'message' => $message->toArray(),
+				];
 			}
-
-			return [
-				'status'  => 'success',
-				'message' => $result->toArray(),
-			];
-
 		} catch ( Throwable $e ) {
 			return [
 				'status'  => 'error',
+				'type'    => 'exception',
 				'message' => $e->getMessage(),
 			];
 		}
