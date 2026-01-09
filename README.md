@@ -12,7 +12,7 @@ deeply with the **WordPress Abilities API**.
 * Exposes WordPress abilities to AI as callable tools
 * Provides an opt-in orchestration pipeline using
   `Ability_Function_Resolver` (located in wp-ai-client)
-* Abilities are added as function declarations using the `using_abilities()` method. 
+* Abilities are added as function declarations using the `using_abilities()` method.
 * Abilities are automatically executed when the tool is called from the AI ​​assistant.
 * It returns a generic response that includes AI responses and function call responses.
 * Keeps all side-effects under explicit developer control
@@ -23,6 +23,16 @@ deeply with the **WordPress Abilities API**.
 * Ability execution is performed via `Ability_Function_Resolver` (located in wp-ai-client)
 * No MCP server is required
 * REST endpoint provided for client-side integrations
+
+## Development
+Clone the repository into your `wp-content/plugins` directory and run:
+
+```bash
+composer install
+```
+
+This will install all necessary dependencies for development.
+
 
 ## Recommended Tools
 

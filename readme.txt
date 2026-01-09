@@ -19,10 +19,13 @@ Key principles:
 
 * Uses wp-ai-client for prompt building and AI communication
 * Exposes WordPress abilities to AI as callable tools
-* **Does NOT automatically execute AI tool calls**
 * Provides an opt-in orchestration pipeline using
   `Ability_Function_Resolver` (located in wp-ai-client)
+* Abilities are added as function declarations using the `using_abilities()` method.
+* Abilities are automatically executed when the tool is called from the AI ​​assistant.
+* It returns a generic response that includes AI responses and function call responses.
 * Keeps all side-effects under explicit developer control
+
 
 This design mirrors MCP-style tool calling semantics while remaining fully embedded
 inside the WordPress runtime.

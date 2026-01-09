@@ -9,8 +9,6 @@
 
 namespace OrchestratorForWpAiClient\Common;
 
-use WordPress\AiClient\Files\DTO\File;
-
 defined( 'ABSPATH' ) || exit;
 
 class Helper {

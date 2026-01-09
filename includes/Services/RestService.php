@@ -10,8 +10,7 @@
 
 namespace OrchestratorForWpAiClient\Services;
 
-
-use ORCHESTRATOR_FOR_WP_AI\Orchestrator\Ability_Orchestrator;
+use OrchestratorForWpAiClient\Common\DI;
 use OrchestratorForWpAiClient\Orchestrator\AiOrchestrator;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -40,7 +39,7 @@ final class RestService {
 	}
 
 	public function handle( WP_REST_Request $request ): WP_REST_Response {
-		$orchestrator = new AiOrchestrator();
+		$orchestrator = DI::container()->get(AiOrchestrator::class);
 
 		$response = $orchestrator->handle( $request );
 
